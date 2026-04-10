@@ -44,6 +44,23 @@
             cursor: grabbing;
             transform: scale(0.95);
         }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
@@ -62,13 +79,20 @@
             <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-indigo-500">
                 <h2 class="text-xl font-bold mb-4 text-gray-700">Lab Controls</h2>
                 
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-600 mb-2">Select Object</label>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-600 mb-2">Select Object / Liquid</label>
                     <select id="objectSelect" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50">
                         </select>
                     <div class="mt-2 text-sm text-gray-500" id="objectTypeHint">
                         Type: <span class="font-bold text-indigo-600">Regular Object</span>
                     </div>
+                </div>
+
+                <div id="liquidControls" class="mb-6 hidden bg-indigo-50 p-3 rounded-lg border border-indigo-200">
+                    <label class="block text-sm font-medium text-indigo-800 mb-2 font-bold">
+                        Adjust Liquid Volume (<span id="lblLiquidVol">50</span> ml)
+                    </label>
+                    <input type="range" id="sliderLiquidVol" min="10" max="100" value="50" step="1" class="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer">
                 </div>
 
                 <div class="grid grid-cols-1 gap-3">
@@ -85,7 +109,17 @@
                         <span class="text-gray-600">Mass (<span class="italic">m</span>)</span>
                         <span class="font-mono font-bold text-xl text-blue-600"><span id="dataMass">--</span> g</span>
                     </div>
-                    <div class="flex justify-between items-center border-b pb-2">
+
+                    <div id="massCalcBox" class="pt-2 bg-orange-50 p-3 rounded-lg border border-orange-200 mt-2 hidden">
+                        <span class="text-gray-600 text-xs font-bold block mb-1 uppercase tracking-wider">Mass Calculation:</span>
+                        <div class="font-mono text-sm text-gray-700">
+                            m<sub>liquid</sub> = m<sub>total</sub> - m<sub>cylinder</sub><br>
+                            m = <span id="valMTotal">--</span> g - 50.0 g<br>
+                            <span class="font-bold text-orange-700">m = <span id="valMLiquid">--</span> g</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center border-b pb-2 mt-4">
                         <span class="text-gray-600">Volume (<span class="italic">V</span>)</span>
                         <span class="font-mono font-bold text-xl text-green-600"><span id="dataVolume">--</span> cm&sup3;</span>
                     </div>
@@ -103,6 +137,11 @@
                             V = V<sub>final</sub> - V<sub>initial</sub><br>
                             V = <span id="valVFinal">--</span> ml - <span id="valVInitial">100</span> ml<br>
                             <span class="font-bold text-green-700">V = <span id="valVIrreg">--</span> cm&sup3;</span>
+                        </div>
+
+                        <div id="stepLiquid" class="hidden font-mono text-sm text-gray-700">
+                            Direct reading from measuring cylinder:<br>
+                            <span class="font-bold text-green-700">V = <span id="valVLiquid">--</span> ml (cm&sup3;)</span>
                         </div>
                     </div>
                     
@@ -131,7 +170,7 @@
 
                 <div class="flex-grow flex items-end justify-around pb-4 pt-10 z-10 relative">
                     <div id="scaleZone" class="w-64 h-56 flex flex-col items-center justify-end relative border-2 border-transparent rounded-xl transition-all p-2">
-                        <div class="text-sm font-bold text-gray-400 mb-auto">Drop here for Mass</div>
+                        <div class="text-sm font-bold text-gray-400 mb-auto text-center">Drop here for Mass<br><span class="text-xs font-normal">(Places entire object/cylinder on scale)</span></div>
                         <div class="relative w-48 h-12 bg-gray-200 border-2 border-gray-400 rounded-b-xl shadow-md flex items-center justify-center z-20">
                             <div class="w-24 h-8 bg-gray-900 rounded border-2 border-gray-700 flex items-center justify-end px-2">
                                 <span id="scaleDisplay" class="digital-font text-green-400 text-lg font-bold">0.0 g</span>
@@ -142,8 +181,9 @@
                     </div>
 
                     <div id="volumeZone" class="w-72 h-80 flex flex-col items-center justify-end relative border-2 border-transparent rounded-xl transition-all p-2">
-                        <div class="text-sm font-bold text-gray-400 mb-auto">Drop here for Volume</div>
+                        <div class="text-sm font-bold text-gray-400 mb-auto text-center">Drop here for Volume<br><span class="text-xs font-normal">(Ruler, Displacement, or Direct Reading)</span></div>
                         <div id="volumeVisualContainer" class="w-full h-full relative flex items-end justify-center pb-2">
+                            
                             <div id="rulerSetup" class="hidden w-full h-full flex-col items-center justify-end relative">
                                 <div class="w-full flex justify-center z-10 mb-8 relative">
                                     <div id="rulerPlatform" class="w-full h-40 flex items-center justify-center relative"></div>
@@ -159,7 +199,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="w-56 h-8 bg-yellow-200 border-2 border-yellow-400 rounded-sm z-20 flex justify-between px-2 text-[10px] text-yellow-800 font-bold items-top pt-1 relative shadow-sm">
+                                <div id="rulerGraphic" class="w-56 h-8 bg-yellow-200 border-2 border-yellow-400 rounded-sm z-20 flex justify-between px-2 text-[10px] text-yellow-800 font-bold items-top pt-1 relative shadow-sm">
                                     <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10 cm</span>
                                 </div>
                             </div>
@@ -179,21 +219,32 @@
 
             <div class="bg-indigo-50 border-l-4 border-indigo-600 p-4 rounded-r-lg" id="hintBox">
                 <p class="text-sm text-indigo-800" id="hintText">
-                    <span class="font-bold">Instructions:</span> Select an object, then drag it onto the digital scale to find its mass.
+                    <span class="font-bold">Instructions:</span> Select an object or liquid, then drag it onto the digital scale to find its mass.
                 </p>
             </div>
         </div>
     </div>
 
     <script>
+        const CYLINDER_MASS = 50.0; // Mass of empty cylinder for liquid measurements
+        
         const objects = [
             { id: 'plastic_block', name: 'Plastic Block', type: 'regular', mass: 42.0, l: 5.0, w: 4.0, h: 2.0, volume: 40.0, renderHTML: `<div class="cube-container" style="width: 60px; height: 30px;"><div class="cube w-full h-full"><div class="face w-full h-full bg-red-500/90 flex items-center justify-center text-white/50 font-bold">Plastic</div><div class="face w-full h-[40px] bg-red-600/90" style="transform: translateY(-40px) rotateX(90deg); transform-origin: bottom;"></div><div class="face w-[40px] h-full bg-red-700/90" style="transform: translateX(-40px) rotateY(-90deg); transform-origin: right;"></div></div></div>` },
             { id: 'aluminum_block', name: 'Aluminum Block', type: 'regular', mass: 135.0, l: 5.0, w: 5.0, h: 2.0, volume: 50.0, renderHTML: `<div class="cube-container" style="width: 50px; height: 30px;"><div class="cube w-full h-full"><div class="face w-full h-full bg-gray-300 border-gray-400 flex items-center justify-center text-gray-500 font-bold">Al</div><div class="face w-full h-[50px] bg-gray-200 border-gray-400" style="transform: translateY(-50px) rotateX(90deg); transform-origin: bottom;"></div><div class="face w-[50px] h-full bg-gray-400 border-gray-400" style="transform: translateX(-50px) rotateY(-90deg); transform-origin: right;"></div></div></div>` },
             { id: 'granite_rock', name: 'Granite Rock', type: 'irregular', mass: 162.0, volume: 60.0, renderHTML: `<div class="w-16 h-14 bg-stone-500 rounded-[40%_60%_70%_30%/40%_50%_60%_50%] shadow-inner flex items-center justify-center"></div>` },
-            { id: 'golden_crown', name: 'Golden Crown', type: 'irregular', mass: 386.0, volume: 20.0, renderHTML: `<div class="w-14 h-12 relative flex items-end"><div class="w-full h-8 bg-yellow-400 rounded-b border-b-2 border-yellow-600"></div><div class="absolute bottom-8 w-4 h-6 bg-yellow-400 left-0 rounded-t-full"></div><div class="absolute bottom-8 w-4 h-8 bg-yellow-400 left-[20px] rounded-t-full"></div><div class="absolute bottom-8 w-4 h-6 bg-yellow-400 right-0 rounded-t-full"></div></div>` }
+            { id: 'golden_crown', name: 'Golden Crown', type: 'irregular', mass: 386.0, volume: 20.0, renderHTML: `<div class="w-14 h-12 relative flex items-end"><div class="w-full h-8 bg-yellow-400 rounded-b border-b-2 border-yellow-600"></div><div class="absolute bottom-8 w-4 h-6 bg-yellow-400 left-0 rounded-t-full"></div><div class="absolute bottom-8 w-4 h-8 bg-yellow-400 left-[20px] rounded-t-full"></div><div class="absolute bottom-8 w-4 h-6 bg-yellow-400 right-0 rounded-t-full"></div></div>` },
+            { id: 'liquid_water', name: 'Water (Liquid)', type: 'liquid', density: 1.00, color: 'bg-blue-400/80', border: 'border-blue-600' },
+            { id: 'liquid_oil', name: 'Cooking Oil (Liquid)', type: 'liquid', density: 0.92, color: 'bg-yellow-300/80', border: 'border-yellow-500' }
         ];
 
-        let state = { activeObject: objects[0], isMassMeasured: false, isVolumeMeasured: false, currentLocation: 'inventory' };
+        let state = { 
+            activeObject: objects[0], 
+            isMassMeasured: false, 
+            isVolumeMeasured: false, 
+            currentLocation: 'inventory',
+            liquidVolume: 50
+        };
+        
         const INITIAL_WATER_VOL = 100;
         const MAX_WATER_VOL = 200;
 
@@ -213,6 +264,7 @@
             volumeZone: document.getElementById('volumeZone'),
             scalePlatform: document.getElementById('scalePlatform'),
             rulerPlatform: document.getElementById('rulerPlatform'),
+            rulerGraphic: document.getElementById('rulerGraphic'),
             waterPlatform: document.getElementById('waterPlatform'),
             scaleDisplay: document.getElementById('scaleDisplay'),
             rulerSetup: document.getElementById('rulerSetup'),
@@ -223,16 +275,25 @@
             lblLength: document.getElementById('lblLength'),
             waterLevel: document.getElementById('waterLevel'),
             meniscusLabel: document.getElementById('meniscusLabel'),
-            // New calculation steps elements
             volCalcBox: document.getElementById('volCalcBox'),
             stepRegular: document.getElementById('stepRegular'),
             stepIrregular: document.getElementById('stepIrregular'),
+            stepLiquid: document.getElementById('stepLiquid'),
             valL: document.getElementById('valL'),
             valW: document.getElementById('valW'),
             valH: document.getElementById('valH'),
             valVReg: document.getElementById('valVReg'),
             valVFinal: document.getElementById('valVFinal'),
-            valVIrreg: document.getElementById('valVIrreg')
+            valVIrreg: document.getElementById('valVIrreg'),
+            valVLiquid: document.getElementById('valVLiquid'),
+            
+            // Liquid specific elements
+            liquidControls: document.getElementById('liquidControls'),
+            sliderLiquidVol: document.getElementById('sliderLiquidVol'),
+            lblLiquidVol: document.getElementById('lblLiquidVol'),
+            massCalcBox: document.getElementById('massCalcBox'),
+            valMTotal: document.getElementById('valMTotal'),
+            valMLiquid: document.getElementById('valMLiquid')
         };
 
         let draggableEl = null;
@@ -243,11 +304,16 @@
                 opt.value = obj.id; opt.textContent = obj.name;
                 els.select.appendChild(opt);
             });
+            
             els.select.addEventListener('change', (e) => loadObject(objects.find(o => o.id === e.target.value)));
             els.btnReset.addEventListener('click', () => loadObject(state.activeObject));
-            setupDropZone(els.scaleZone, handleDropOnScale);
-            setupDropZone(els.volumeZone, handleDropOnVolume);
+            
+            els.sliderLiquidVol.addEventListener('input', handleSliderChange);
+
+            setupDropZone(els.scaleZone, () => handleDropOnScale(false));
+            setupDropZone(els.volumeZone, () => handleDropOnVolume(false));
             setupDropZone(els.spawnZone.parentElement, handleDropOnInventory);
+            
             loadObject(objects[0]);
         }
 
@@ -259,11 +325,26 @@
 
         function loadObject(obj) {
             state.activeObject = obj;
-            els.typeHint.innerHTML = `Type: <span class="font-bold ${obj.type === 'regular' ? 'text-indigo-600' : 'text-orange-600'}">${obj.type === 'regular' ? 'Regular Object' : 'Irregular Object'}</span>`;
+            
+            if (obj.type === 'liquid') {
+                els.typeHint.innerHTML = `Type: <span class="font-bold text-teal-600">Liquid</span>`;
+                els.liquidControls.classList.remove('hidden');
+                state.liquidVolume = parseInt(els.sliderLiquidVol.value);
+            } else {
+                els.typeHint.innerHTML = `Type: <span class="font-bold ${obj.type === 'regular' ? 'text-indigo-600' : 'text-orange-600'}">${obj.type === 'regular' ? 'Regular Object' : 'Irregular Object'}</span>`;
+                els.liquidControls.classList.add('hidden');
+            }
+            
             createDraggableElement();
-            if (obj.type === 'regular') {
+            
+            if (obj.type === 'regular' || obj.type === 'liquid') {
                 els.rulerSetup.classList.replace('hidden', 'flex');
                 els.cylinderSetup.classList.add('hidden');
+                if(obj.type === 'liquid') {
+                    els.rulerGraphic.style.opacity = '0'; // Hide ruler for liquid
+                } else {
+                    els.rulerGraphic.style.opacity = '1';
+                }
             } else {
                 els.rulerSetup.classList.replace('flex', 'hidden');
                 els.cylinderSetup.classList.remove('hidden');
@@ -271,15 +352,48 @@
             resetMeasurements();
         }
 
+        function getLiquidHTML(color, border, volume) {
+            const heightPct = Math.max(10, Math.min(100, volume));
+            return `
+            <div class="w-16 h-32 border-x-4 border-b-4 border-white bg-white/40 rounded-b shadow-md relative flex flex-col justify-end overflow-hidden backdrop-blur-sm">
+                <div class="absolute left-0 top-0 h-full w-2 border-r border-gray-400/50 z-30"></div>
+                <div class="w-full ${color} border-t-2 ${border} relative z-10 transition-all duration-300" id="liquidVisualLevel" style="height: ${heightPct}%"></div>
+                <div class="absolute w-full text-center bottom-2 z-20 text-[10px] font-bold text-white drop-shadow-md">Cylinder</div>
+            </div>`;
+        }
+
         function createDraggableElement() {
             if (draggableEl) draggableEl.remove();
             draggableEl = document.createElement('div');
-            draggableEl.className = 'object-item z-50 absolute';
-            draggableEl.innerHTML = state.activeObject.renderHTML;
+            draggableEl.className = 'object-item z-50 absolute flex flex-col items-center';
+            
+            if (state.activeObject.type === 'liquid') {
+                draggableEl.innerHTML = getLiquidHTML(state.activeObject.color, state.activeObject.border, state.liquidVolume);
+            } else {
+                draggableEl.innerHTML = state.activeObject.renderHTML;
+            }
+            
             draggableEl.setAttribute('draggable', 'true');
             draggableEl.addEventListener('dragstart', (e) => { setTimeout(() => draggableEl.style.opacity = '0.5', 0); });
             draggableEl.addEventListener('dragend', () => draggableEl.style.opacity = '1');
             moveToInventory();
+        }
+
+        function handleSliderChange(e) {
+            state.liquidVolume = parseInt(e.target.value);
+            els.lblLiquidVol.textContent = state.liquidVolume;
+            
+            if (state.activeObject.type === 'liquid' && draggableEl) {
+                const fillEl = draggableEl.querySelector('#liquidVisualLevel');
+                if (fillEl) fillEl.style.height = `${state.liquidVolume}%`;
+                
+                // Dynamically update calculations if already placed on bench
+                if (state.currentLocation === 'scale') {
+                    handleDropOnScale(true);
+                } else if (state.currentLocation === 'volume') {
+                    handleDropOnVolume(true);
+                }
+            }
         }
 
         function resetMeasurements() {
@@ -292,65 +406,111 @@
             els.meniscusLabel.textContent = '100 ml';
             els.meniscusLabel.style.bottom = '50%';
             els.waterPlatform.style.opacity = '0';
+            
             els.volCalcBox.classList.add('hidden');
             els.stepRegular.classList.add('hidden');
             els.stepIrregular.classList.add('hidden');
+            els.stepLiquid.classList.add('hidden');
+            els.massCalcBox.classList.add('hidden');
+            
             updateHint();
         }
 
-        function handleDropOnScale() {
-            els.scalePlatform.appendChild(draggableEl);
-            draggableEl.style.position = 'relative';
-            state.currentLocation = 'scale';
-            state.isMassMeasured = true;
-            els.scaleDisplay.textContent = '...';
+        function handleDropOnScale(isUpdate = false) {
+            if (!isUpdate) {
+                els.scalePlatform.appendChild(draggableEl);
+                draggableEl.style.position = 'relative';
+                state.currentLocation = 'scale';
+                state.isMassMeasured = true;
+                els.scaleDisplay.textContent = '...';
+                undoVolumeVisuals();
+            }
+
+            const obj = state.activeObject;
             setTimeout(() => {
-                els.scaleDisplay.textContent = state.activeObject.mass.toFixed(1) + ' g';
-                els.dataMass.textContent = state.activeObject.mass.toFixed(1);
+                if (obj.type === 'liquid') {
+                    const totalMass = CYLINDER_MASS + (state.liquidVolume * obj.density);
+                    const netMass = state.liquidVolume * obj.density;
+                    els.scaleDisplay.textContent = totalMass.toFixed(1) + ' g';
+                    els.dataMass.textContent = netMass.toFixed(1);
+                    
+                    els.massCalcBox.classList.remove('hidden');
+                    els.valMTotal.textContent = totalMass.toFixed(1);
+                    els.valMLiquid.textContent = netMass.toFixed(1);
+                } else {
+                    els.scaleDisplay.textContent = obj.mass.toFixed(1) + ' g';
+                    els.dataMass.textContent = obj.mass.toFixed(1);
+                    els.massCalcBox.classList.add('hidden');
+                }
                 updateCalculations();
-            }, 400);
-            undoVolumeVisuals();
+            }, isUpdate ? 0 : 400);
         }
 
-        function handleDropOnVolume() {
-            state.currentLocation = 'volume';
-            state.isVolumeMeasured = true;
-            els.scaleDisplay.textContent = '0.0 g';
-            els.volCalcBox.classList.remove('hidden');
+        function handleDropOnVolume(isUpdate = false) {
+            if (!isUpdate) {
+                state.currentLocation = 'volume';
+                state.isVolumeMeasured = true;
+                els.scaleDisplay.textContent = '0.0 g';
+                els.volCalcBox.classList.remove('hidden');
+                els.massCalcBox.classList.add('hidden');
+            }
 
-            if (state.activeObject.type === 'regular') {
-                els.rulerPlatform.appendChild(draggableEl);
-                draggableEl.style.position = 'relative';
-                els.stepRegular.classList.remove('hidden');
-                els.stepIrregular.classList.add('hidden');
+            const obj = state.activeObject;
+
+            if (obj.type === 'regular') {
+                if(!isUpdate) {
+                    els.rulerPlatform.appendChild(draggableEl);
+                    draggableEl.style.position = 'relative';
+                    els.stepRegular.classList.remove('hidden');
+                    els.stepIrregular.classList.add('hidden');
+                    els.stepLiquid.classList.add('hidden');
+                }
                 setTimeout(() => {
-                    els.lblLength.textContent = `L=${state.activeObject.l}cm`;
-                    els.lblWidth.textContent = `W=${state.activeObject.w}cm`;
-                    els.lblHeight.textContent = `H=${state.activeObject.h}cm`;
+                    els.lblLength.textContent = `L=${obj.l}cm`;
+                    els.lblWidth.textContent = `W=${obj.w}cm`;
+                    els.lblHeight.textContent = `H=${obj.h}cm`;
                     els.dimLines.classList.remove('hidden');
-                    els.valL.textContent = state.activeObject.l;
-                    els.valW.textContent = state.activeObject.w;
-                    els.valH.textContent = state.activeObject.h;
-                    els.valVReg.textContent = state.activeObject.volume.toFixed(1);
-                    els.dataVolume.textContent = state.activeObject.volume.toFixed(1);
+                    els.valL.textContent = obj.l;
+                    els.valW.textContent = obj.w;
+                    els.valH.textContent = obj.h;
+                    els.valVReg.textContent = obj.volume.toFixed(1);
+                    els.dataVolume.textContent = obj.volume.toFixed(1);
                     updateCalculations();
-                }, 300);
-            } else {
-                els.waterPlatform.appendChild(draggableEl);
-                draggableEl.style.position = 'relative';
-                els.waterPlatform.style.opacity = '1';
-                els.stepIrregular.classList.remove('hidden');
-                els.stepRegular.classList.add('hidden');
-                const newVol = INITIAL_WATER_VOL + state.activeObject.volume;
+                }, isUpdate ? 0 : 300);
+                
+            } else if (obj.type === 'irregular') {
+                if(!isUpdate) {
+                    els.waterPlatform.appendChild(draggableEl);
+                    draggableEl.style.position = 'relative';
+                    els.waterPlatform.style.opacity = '1';
+                    els.stepIrregular.classList.remove('hidden');
+                    els.stepRegular.classList.add('hidden');
+                    els.stepLiquid.classList.add('hidden');
+                }
+                const newVol = INITIAL_WATER_VOL + obj.volume;
                 setTimeout(() => {
                     els.waterLevel.style.height = `${(newVol / MAX_WATER_VOL) * 100}%`;
                     els.meniscusLabel.style.bottom = `${(newVol / MAX_WATER_VOL) * 100}%`;
                     els.meniscusLabel.textContent = `${newVol} ml`;
                     els.valVFinal.textContent = newVol;
-                    els.valVIrreg.textContent = state.activeObject.volume.toFixed(1);
-                    els.dataVolume.textContent = state.activeObject.volume.toFixed(1);
+                    els.valVIrreg.textContent = obj.volume.toFixed(1);
+                    els.dataVolume.textContent = obj.volume.toFixed(1);
                     updateCalculations();
-                }, 100);
+                }, isUpdate ? 0 : 100);
+                
+            } else if (obj.type === 'liquid') {
+                if(!isUpdate) {
+                    els.rulerPlatform.appendChild(draggableEl); 
+                    draggableEl.style.position = 'relative';
+                    els.stepLiquid.classList.remove('hidden');
+                    els.stepRegular.classList.add('hidden');
+                    els.stepIrregular.classList.add('hidden');
+                }
+                setTimeout(() => {
+                    els.valVLiquid.textContent = state.liquidVolume.toFixed(1);
+                    els.dataVolume.textContent = state.liquidVolume.toFixed(1);
+                    updateCalculations();
+                }, isUpdate ? 0 : 100);
             }
         }
 
@@ -359,10 +519,15 @@
             undoVolumeVisuals();
             els.scaleDisplay.textContent = '0.0 g';
             els.volCalcBox.classList.add('hidden');
+            els.massCalcBox.classList.add('hidden');
             updateHint();
         }
 
-        function moveToInventory() { state.currentLocation = 'inventory'; els.spawnZone.appendChild(draggableEl); draggableEl.style.position = 'relative'; }
+        function moveToInventory() { 
+            state.currentLocation = 'inventory'; 
+            els.spawnZone.appendChild(draggableEl); 
+            draggableEl.style.position = 'relative'; 
+        }
 
         function undoVolumeVisuals() {
             els.dimLines.classList.add('hidden');
@@ -373,11 +538,27 @@
         }
 
         function updateCalculations() {
-            if (state.isMassMeasured) els.calcM.textContent = state.activeObject.mass.toFixed(1);
-            if (state.isVolumeMeasured) els.calcV.textContent = state.activeObject.volume.toFixed(1);
+            if (state.isMassMeasured) {
+                const massToUse = state.activeObject.type === 'liquid' 
+                    ? state.liquidVolume * state.activeObject.density 
+                    : state.activeObject.mass;
+                els.calcM.textContent = massToUse.toFixed(1);
+            }
+            
+            if (state.isVolumeMeasured) {
+                const volToUse = state.activeObject.type === 'liquid' 
+                    ? state.liquidVolume 
+                    : state.activeObject.volume;
+                els.calcV.textContent = volToUse.toFixed(1);
+            }
+            
             if (state.isMassMeasured && state.isVolumeMeasured) {
-                els.calcDensity.textContent = (state.activeObject.mass / state.activeObject.volume).toFixed(2);
+                const mass = state.activeObject.type === 'liquid' ? state.liquidVolume * state.activeObject.density : state.activeObject.mass;
+                const vol = state.activeObject.type === 'liquid' ? state.liquidVolume : state.activeObject.volume;
+                els.calcDensity.textContent = (mass / vol).toFixed(2);
                 els.calculationBox.classList.replace('bg-gray-50', 'bg-green-50');
+            } else {
+                els.calculationBox.classList.replace('bg-green-50', 'bg-gray-50');
             }
             updateHint();
         }
@@ -388,9 +569,9 @@
             } else if (state.isMassMeasured && !state.isVolumeMeasured) {
                 els.hintText.innerHTML = `<span class="font-bold">Step 2:</span> Mass recorded. Now measure the volume to see the calculation steps!`;
             } else if (!state.isMassMeasured && state.isVolumeMeasured) {
-                els.hintText.innerHTML = `<span class="font-bold">Step 2:</span> Volume calculated! Now get the mass.`;
+                els.hintText.innerHTML = `<span class="font-bold">Step 2:</span> Volume recorded! Now get the mass.`;
             } else {
-                els.hintText.innerHTML = `<span class="font-bold text-green-700">Success!</span> Both mass and volume have been measured.`;
+                els.hintText.innerHTML = `<span class="font-bold text-green-700">Success!</span> Both mass and volume have been measured. You can adjust the slider (for liquids) to see how the numbers change dynamically.`;
             }
         }
 
